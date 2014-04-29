@@ -1,5 +1,6 @@
 <?php
 require_once ('vendor/facebook/php-sdk/src/facebook.php');
+header ( 'Content-type: text/html; charset=utf-8' );
 
 $db = new PDO ( 'mysql:host=localhost;dbname=fb_data_analysis;charset=utf8mb4', 'root', '', array (
 		PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -30,25 +31,52 @@ if ($user_id) {
 	$login_url = $facebook->getLoginUrl ();
 	echo 'Please <a href="' . $login_url . '">login.</a>';
 }
+
+function batch_fetch_by_day($facebook, $post_url, $start, $end){
+	
+}
+
 function fetch_by_day($facebook, $post_url, $day) {
 	$since = strtotime ( $day );
 	$until = $since + 86400;
+	$posts = [ ];
+	$i = 0;
+	echo "Start fetch $day data...<br />";
+	flush_buffers ();
 	do {
+		
 		try {
-			$posts = $facebook->api ( $post_url, 'GET', array (
-					'since' => $since,
-					'until' => $until 
-			) );
-			insert ( $posts );
+			if (has_more_page ( $posts )) {
+				$posts = $facebook->api ( $posts ['paging'] ['next'], 'GET' );
+			} else {
+				$posts = $facebook->api ( $post_url, 'GET', array (
+						'since' => $since,
+						'until' => $until 
+				) );
+			}
+			if (array_key_exists ( 'data', $posts )) {
+				insert ( $posts );
+				$i ++;
+				$num_of_records = count($posts['data']);
+				echo "\tInserted page $i ($num_of_records records) data...<br />";
+			}
+			flush_buffers ();
 		} catch ( FacebookApiException $e ) {
 			$login_url = $facebook->getLoginUrl ();
-			echo 'Please <a href="' . $login_url . '">login.</a>';
+			echo 'Please <a href="' . $login_url . '">login.</a><br />';
+			flush_buffers ();
+			break;
 		}
-	} while ( !is_last_page ( $posts ) );
+	} while ( has_more_page ( $posts ) );
+	if (! has_more_page ( $posts )) {
+		echo "End fetch $day data...<br />";
+		flush_buffers ();
+	}
 }
 function insert($posts) {
 	global $db;
 	global $post_table;
+	
 	foreach ( $posts ['data'] as $post ) {
 		$stmt = $db->prepare ( "INSERT INTO $post_table (id, data, created) VALUES (?, ? ,?) ON DUPLICATE KEY UPDATE data = ?, created = ? " );
 		$stmt->bindValue ( 1, $post ['id'] );
@@ -59,34 +87,11 @@ function insert($posts) {
 		$stmt->execute ();
 	}
 }
+
 function fetch_all() {
-	$sleep_time = 10;
-	$interval_in_day = 30;
-	
-	// We have a user ID, so probably a logged in user.
-	// If not, we'll get an exception, which we handle below.
-	
-	$until = get_earliest_time ();
-	$since = $until - $interval_in_day * 86400;
-	$posts = $facebook->api ( $url, 'GET', array (
-			'since' => $since,
-			'until' => $until 
-	) );
-	
-	try {
-		while ( ! is_last_page ( $posts ) ) {
-			$until = determine_until_form_all_posts ( $all_posts );
-			$since = $until - $interval_in_day * 86400;
-			$posts = $facebook->api ( $url, 'GET', array (
-					'since' => $since,
-					'until' => $until 
-			) );
-		}
-	} catch ( FacebookApiException $e ) {
-		$login_url = $facebook->getLoginUrl ();
-		echo 'Please <a href="' . $login_url . '">login.</a>';
-	}
 }
+
+
 function create_tables($db) {
 	$ddl = file_get_contents ( 'ddl.sql' );
 	try {
@@ -110,10 +115,14 @@ function get_earliest_time() {
 		return strtotime ( 'now' );
 	}
 }
-function is_last_page($posts) {
-	return ! array_key_exists ( 'paging', $posts ) && array_key_exists ( 'next', $posts ['paging'] );
+function has_more_page($posts) {
+	return (array_key_exists ( 'paging', $posts ) && array_key_exists ( 'next', $posts ['paging'] ));
 }
 function get_created_time($post) {
 	return $post ['created_time'];
+}
+function flush_buffers() {
+	ob_flush ();
+	flush ();
 }
 ?>
