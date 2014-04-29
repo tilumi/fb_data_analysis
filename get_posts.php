@@ -15,14 +15,16 @@ $config = array (
 );
 $facebook = new Facebook ( $config );
 
-$page_id = '219204214762378';
+$page_id = $_GET['page_id'];
+if(!$page_id)
+	$page_id = '219204214762378';
+
 $post_url = "/$page_id/posts";
 $post_table = 'post';
 
 $user_id = $facebook->getUser ();
 
-if ($user_id) {
-	// main($db);
+if ($user_id) {	
 	$day = $_GET ['day'];
 	$start = $_GET['start'];
 	$end = $_GET['end'];
