@@ -24,7 +24,13 @@ $user_id = $facebook->getUser ();
 if ($user_id) {
 	// main($db);
 	$day = $_GET ['day'];
-	fetch_by_day ( $facebook, $post_url, $day );
+	$start = $_GET['start'];
+	$end = $_GET['end'];
+	if($start && $end){
+		batch_fetch_by_day($facebook, $post_url, $start, $end);
+	}else if($day){
+		fetch_by_day ( $facebook, $post_url, $day );
+	}
 } else {
 	
 	// No user, print a link for the user to login
@@ -33,7 +39,14 @@ if ($user_id) {
 }
 
 function batch_fetch_by_day($facebook, $post_url, $start, $end){
-	
+	$current_time = strtotime($start);
+	$end_time = strtotime($end);
+	while($current_time <= $end_time){
+		fetch_by_day($facebook, $post_url, date('Ymd',$current_time));
+		$current_time = $current_time + 86400;
+		echo "<br>";
+		flush_buffers();
+	}		
 }
 
 function fetch_by_day($facebook, $post_url, $day) {
@@ -89,6 +102,7 @@ function insert($posts) {
 }
 
 function fetch_all() {
+	
 }
 
 
