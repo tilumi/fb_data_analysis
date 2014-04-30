@@ -68,8 +68,12 @@ function fetch_by_day($facebook, $post_url, $day) {
 			if (array_key_exists ( 'data', $posts )) {
 				insert ( $posts );
 				foreach ($posts['data'] as $post){
+					echo "<div style='padding-left: 20px;'>";
 					\Comment\fetch($facebook, $post['id']);
+					echo "<br />";
 					\Like\fetch($facebook, $post['id']);
+					echo "<br />";
+					echo "</div>";
 				}
 				$i ++;
 				$num_of_records = count ( $posts ['data'] );
