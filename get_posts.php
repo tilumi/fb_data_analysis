@@ -1,12 +1,11 @@
 <?php
-require_once ('vendor/facebook/php-sdk/src/facebook.php');
-header ( 'Content-type: text/html; charset=utf-8' );
+require_once 'vendor/facebook/php-sdk/src/facebook.php';
+require_once 'utils.php';
+require_once 'init_db.php';
+require_once 'get_comments.php';
+require_once 'get_likes.php';
 
-$db = new PDO ( 'mysql:host=localhost;dbname=fb_data_analysis;charset=utf8mb4', 'root', '', array (
-		PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-		PDO::ATTR_PERSISTENT => false 
-) );
-create_tables ( $db );
+header ( 'Content-type: text/html; charset=utf-8' );
 
 $config = array (
 		'appId' => '506471126052324',
@@ -15,22 +14,21 @@ $config = array (
 );
 $facebook = new Facebook ( $config );
 
-$page_id = $_GET['page_id'];
-if(!$page_id)
+$page_id = $_GET ['page_id'];
+if (! $page_id)
 	$page_id = '219204214762378';
 
 $post_url = "/$page_id/posts";
-$post_table = 'post';
 
 $user_id = $facebook->getUser ();
 
-if ($user_id) {	
+if ($user_id) {
 	$day = $_GET ['day'];
-	$start = $_GET['start'];
-	$end = $_GET['end'];
-	if($start && $end){
-		batch_fetch_by_day($facebook, $post_url, $start, $end);
-	}else if($day){
+	$start = $_GET ['start'];
+	$end = $_GET ['end'];
+	if ($start && $end) {
+		batch_fetch_by_day ( $facebook, $post_url, $start, $end );
+	} else if ($day) {
 		fetch_by_day ( $facebook, $post_url, $day );
 	}
 } else {
@@ -39,18 +37,16 @@ if ($user_id) {
 	$login_url = $facebook->getLoginUrl ();
 	echo 'Please <a href="' . $login_url . '">login.</a>';
 }
-
-function batch_fetch_by_day($facebook, $post_url, $start, $end){
-	$current_time = strtotime($start);
-	$end_time = strtotime($end);
-	while($current_time <= $end_time){
-		fetch_by_day($facebook, $post_url, date('Ymd',$current_time));
+function batch_fetch_by_day($facebook, $post_url, $start, $end) {
+	$current_time = strtotime ( $start );
+	$end_time = strtotime ( $end );
+	while ( $current_time <= $end_time ) {
+		fetch_by_day ( $facebook, $post_url, date ( 'Ymd', $current_time ) );
 		$current_time = $current_time + 86400;
 		echo "<br>";
-		flush_buffers();
-	}		
+		flush_buffers ();
+	}
 }
-
 function fetch_by_day($facebook, $post_url, $day) {
 	$since = strtotime ( $day );
 	$until = $since + 86400;
@@ -71,8 +67,12 @@ function fetch_by_day($facebook, $post_url, $day) {
 			}
 			if (array_key_exists ( 'data', $posts )) {
 				insert ( $posts );
+				foreach ($posts['data'] as $post){
+					\Comment\fetch($facebook, $post['id']);
+					\Like\fetch($facebook, $post['id']);
+				}
 				$i ++;
-				$num_of_records = count($posts['data']);
+				$num_of_records = count ( $posts ['data'] );
 				echo "\tInserted page $i ($num_of_records records) data...<br />";
 			}
 			flush_buffers ();
@@ -90,10 +90,10 @@ function fetch_by_day($facebook, $post_url, $day) {
 }
 function insert($posts) {
 	global $db;
-	global $post_table;
+	global $_POST_TABLE;
 	
 	foreach ( $posts ['data'] as $post ) {
-		$stmt = $db->prepare ( "INSERT INTO $post_table (id, data, created) VALUES (?, ? ,?) ON DUPLICATE KEY UPDATE data = ?, created = ? " );
+		$stmt = $db->prepare ( "INSERT INTO $_POST_TABLE (id, data, created) VALUES (?, ? ,?) ON DUPLICATE KEY UPDATE data = ?, created = ? " );
 		$stmt->bindValue ( 1, $post ['id'] );
 		$stmt->bindValue ( 2, json_encode ( $post ) );
 		$stmt->bindValue ( 3, strtotime ( $post ['created_time'] ), PDO::PARAM_INT );
@@ -102,27 +102,12 @@ function insert($posts) {
 		$stmt->execute ();
 	}
 }
-
 function fetch_all() {
-	
-}
-
-
-function create_tables($db) {
-	$ddl = file_get_contents ( 'ddl.sql' );
-	try {
-		$stmt = $db->prepare ( $ddl );
-		$stmt->execute ();
-	} catch ( PDOException $e ) {
-		echo $e->getMessage ();
-		die ();
-	}
-	return true;
 }
 function get_earliest_time() {
 	global $db;
-	global $post_table;
-	$stmt = $db->prepare ( 'SELECT created from $post_table ORDER BY created LIMIT 1' );
+	global $_POST_TABLE;
+	$stmt = $db->prepare ( "SELECT created from $_POST_TABLE ORDER BY created LIMIT 1" );
 	$stmt->execute ();
 	$result = $stmt->fetchAll ();
 	if (count ( $result ) > 0) {
@@ -130,15 +115,5 @@ function get_earliest_time() {
 	} else {
 		return strtotime ( 'now' );
 	}
-}
-function has_more_page($posts) {
-	return (array_key_exists ( 'paging', $posts ) && array_key_exists ( 'next', $posts ['paging'] ));
-}
-function get_created_time($post) {
-	return $post ['created_time'];
-}
-function flush_buffers() {
-	ob_flush ();
-	flush ();
 }
 ?>
