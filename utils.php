@@ -8,4 +8,5 @@ function flush_buffers() {
 	ob_flush ();
 	flush ();
 }
+
 ?>

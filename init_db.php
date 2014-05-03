@@ -2,6 +2,7 @@
 $_POST_TABLE = 'posts';
 $_COMMENT_TABLE = 'comments';
 $_LIKE_TABLE = 'likes';
+$_JOB_TABLE = 'jobs';
 
 $db = new PDO ( 'mysql:host=localhost;dbname=fb_data_analysis;charset=utf8mb4', 'root', '', array (
 		PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
